@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Backend struct {
@@ -23,12 +26,52 @@ type ServerPool struct {
 	current  uint64
 }
 
+const (
+	Attempts int = iota
+	Retry
+)
+
 var serverPool ServerPool
 
 func main() {
 	var port int
-	flag.IntVar(&port, "port", 3030, "Port to serve")
+	var serverList string
 
+	flag.StringVar(&serverList, "backends", "", "Load balanced backends, use commas to separate")
+	flag.IntVar(&port, "port", 3030, "Port to serve")
+	flag.Parse()
+
+	if len(serverList) == 0 {
+		log.Fatal("Please provide one or more backends to load balance")
+	}
+
+	tokens := strings.SplitSeq(serverList, ",")
+	for tok := range tokens {
+		serverUrl, err := url.Parse(tok)
+		if err != nil {
+			log.Fatal(err)
+		}
+		proxy := httputil.NewSingleHostReverseProxy(serverUrl)
+
+		proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, e error) {
+			log.Printf("[%s] %s\n", serverUrl.Host, e.Error())
+			retries := GetRetryFromContext(req)
+			if retries < 3 {
+				select {
+				case <-time.After(10 * time.Millisecond):
+					ctx := context.WithValue(req.Context(), Retry, retries+1)
+					proxy.ServeHTTP(w, req.WithContext(ctx))
+				}
+				return
+			}
+			serverPool.MarkBackendStatus(serverUrl, false)
+			attemps := GetAttemptsFromContext(req)
+			log.Printf("%s(%s) Attempting retry %d\n", req.RemoteAddr, req.URL.Path, attemps)
+			ctx := context.WithValue(req.Context(), Attempts, attemps+1)
+			lb(w, req.WithContext(ctx))
+		}
+
+	}
 	server := http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: http.HandlerFunc(lb),
@@ -39,12 +82,32 @@ func main() {
 }
 
 func lb(w http.ResponseWriter, r *http.Request) {
+	attempts := GetAttemptsFromContext(r)
+	if attempts > 3 {
+		log.Printf("%s(%s) Max attempts reached, terminating\n", r.RemoteAddr, r.URL.Path)
+		http.Error(w, "Service not availabel", http.StatusServiceUnavailable)
+	}
+
 	peer := serverPool.GetNextPeer()
 	if peer != nil {
 		peer.ReverseProxy.ServeHTTP(w, r)
 		return
 	}
 	http.Error(w, "Service not available", http.StatusServiceUnavailable)
+}
+
+func GetAttemptsFromContext(r *http.Request) int {
+	if attemps, ok := r.Context().Value(Attempts).(int); ok {
+		return attemps
+	}
+	return 1
+}
+
+func GetRetryFromContext(r *http.Request) int {
+	if retry, ok := r.Context().Value(Retry).(int); ok {
+		return retry
+	}
+	return 0
 }
 
 func (b *Backend) SetAlive(alive bool) {
@@ -78,4 +141,13 @@ func (s *ServerPool) GetNextPeer() *Backend {
 		}
 	}
 	return nil
+}
+
+func (s *ServerPool) MarkBackendStatus(backendUrl *url.URL, alive bool) {
+	for _, b := range s.backends {
+		if b.URL.String() == backendUrl.String() {
+			b.SetAlive(alive)
+			break
+		}
+	}
 }
