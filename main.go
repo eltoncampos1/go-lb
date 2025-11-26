@@ -58,11 +58,9 @@ func main() {
 			log.Printf("[%s] %s\n", serverUrl.Host, e.Error())
 			retries := GetRetryFromContext(req)
 			if retries < 3 {
-				select {
-				case <-time.After(10 * time.Millisecond):
-					ctx := context.WithValue(req.Context(), Retry, retries+1)
-					proxy.ServeHTTP(w, req.WithContext(ctx))
-				}
+				time.Sleep(10 * time.Millisecond)
+				ctx := context.WithValue(req.Context(), Retry, retries+1)
+				proxy.ServeHTTP(w, req.WithContext(ctx))
 				return
 			}
 			serverPool.MarkBackendStatus(serverUrl, false)
@@ -77,6 +75,8 @@ func main() {
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: http.HandlerFunc(lb),
 	}
+	go healthCheck()
+
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
@@ -150,6 +150,29 @@ func (s *ServerPool) MarkBackendStatus(backendUrl *url.URL, alive bool) {
 			b.SetAlive(alive)
 			break
 		}
+	}
+}
+
+func (s *ServerPool) HealthCheck() {
+	for _, b := range s.backends {
+		status := "up"
+		alive := isBackendAlive(b.URL)
+		b.SetAlive(alive)
+		if !alive {
+			status = "down"
+		}
+		log.Printf("%s [%s]\n", b.URL, status)
+	}
+}
+
+func healthCheck() {
+	t := time.NewTicker(time.Second * 20)
+	defer t.Stop()
+
+	for range t.C {
+		log.Println("Starting health check...")
+		serverPool.HealthCheck()
+		log.Println("Health check completed")
 	}
 }
 
