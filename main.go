@@ -1,6 +1,9 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -20,11 +23,28 @@ type ServerPool struct {
 	current  uint64
 }
 
+var serverPool ServerPool
+
 func main() {
-	u, _ := url.Parse("http://localhost:8080")
-	rp := httputil.NewSingleHostReverseProxy(u)
-	http.HandleFunc("/", rp.ServeHTTP)
-	http.ListenAndServe(":8080", nil)
+	var port int
+	flag.IntVar(&port, "port", 3030, "Port to serve")
+
+	server := http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: http.HandlerFunc(lb),
+	}
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func lb(w http.ResponseWriter, r *http.Request) {
+	peer := serverPool.GetNextPeer()
+	if peer != nil {
+		peer.ReverseProxy.ServeHTTP(w, r)
+		return
+	}
+	http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
 
 func (b *Backend) SetAlive(alive bool) {
@@ -44,7 +64,7 @@ func (s *ServerPool) NextIndex() int {
 	return int(atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends)))
 }
 
-func (s *ServerPool) GetNextPerr() *Backend {
+func (s *ServerPool) GetNextPeer() *Backend {
 	next := s.NextIndex()
 	l := len(s.backends) + next
 
