@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -150,4 +151,15 @@ func (s *ServerPool) MarkBackendStatus(backendUrl *url.URL, alive bool) {
 			break
 		}
 	}
+}
+
+func isBackendAlive(u *url.URL) bool {
+	timeout := 2 * time.Second
+	conn, err := net.DialTimeout("tcp", u.Host, timeout)
+	if err != nil {
+		log.Println("Site unreachable, error: ", err)
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
