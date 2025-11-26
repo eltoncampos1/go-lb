@@ -69,6 +69,12 @@ func main() {
 			ctx := context.WithValue(req.Context(), Attempts, attemps+1)
 			lb(w, req.WithContext(ctx))
 		}
+		serverPool.AddBackend(&Backend{
+			URL: serverUrl,
+			Alive: true,
+			ReverseProxy: proxy,
+		 })
+		 log.Printf("Configured server: %s\n", serverUrl)
 
 	}
 	server := http.Server{
@@ -132,7 +138,7 @@ func (s *ServerPool) GetNextPeer() *Backend {
 	next := s.NextIndex()
 	l := len(s.backends) + next
 
-	for i := range l {
+	for i := next; i < l; i++  {
 		idx := i % len(s.backends)
 		if s.backends[idx].IsAlive() {
 			if i != next {
@@ -163,6 +169,10 @@ func (s *ServerPool) HealthCheck() {
 		}
 		log.Printf("%s [%s]\n", b.URL, status)
 	}
+}
+
+func (s *ServerPool) AddBackend(backend *Backend){
+	s.backends = append(s.backends, backend)
 }
 
 func healthCheck() {
