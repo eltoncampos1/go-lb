@@ -27,6 +27,10 @@ func (s *ServerPool) NextIndex() int {
 }
 
 func (s *ServerPool) GetNextPeer() *backend.Backend {
+	if len(s.backends) == 0 {
+		return nil
+	}
+
 	next := s.NextIndex()
 	l := len(s.backends) + next
 
