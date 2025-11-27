@@ -7,6 +7,12 @@ import (
 	"testing"
 )
 
+func createTestBackend() *Backend {
+	u, _ := url.Parse("http://localhost:8080")
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	return New(u, proxy)
+}
+
 func TestNew(t *testing.T) {
 	urlStr := "http://localhost:8080"
 	u, _ := url.Parse(urlStr)
@@ -28,9 +34,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestSetAlive(t *testing.T) {
-	u, _ := url.Parse("http://localhost:8080")
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	b := New(u, proxy)
+	b := createTestBackend()
 
 	b.SetAlive(false)
 	if b.Alive {
@@ -44,9 +48,7 @@ func TestSetAlive(t *testing.T) {
 }
 
 func TestIsAlive(t *testing.T) {
-	u, _ := url.Parse("http://localhost:8080")
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	b := New(u, proxy)
+	b := createTestBackend()
 
 	if !b.IsAlive() {
 		t.Error("expected new backend to be alive")
@@ -64,9 +66,7 @@ func TestIsAlive(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	u, _ := url.Parse("http://localhost:8080")
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	b := New(u, proxy)
+	b := createTestBackend()
 
 	var wg sync.WaitGroup
 	iterations := 100
@@ -89,9 +89,7 @@ func TestConcurrentAccess(t *testing.T) {
 }
 
 func TestSetAliveThreadSafety(t *testing.T) {
-	u, _ := url.Parse("http://localhost:8080")
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	b := New(u, proxy)
+	b := createTestBackend()
 
 	var wg sync.WaitGroup
 	goroutines := 50
