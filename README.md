@@ -31,12 +31,28 @@ The Load Balancer:
 .
 ├── cmd/
 │   └── lb/
-│       └── main.go
+│       └── main.go                    # Application entry point
+├── internal/
+│   ├── backend/
+│   │   └── backend.go                 # Backend struct and methods
+│   ├── config/
+│   │   └── config.go                  # Configuration and flag parsing
+│   ├── handler/
+│   │   └── handler.go                 # HTTP handlers and context helpers
+│   ├── healthcheck/
+│   │   └── healthcheck.go             # Backend health checking
+│   └── pool/
+│       └── pool.go                    # ServerPool and round-robin logic
 ├── infra/
 │   ├── Dockerfile
 │   └── docker-compose.yml
 ├── go.mod
+└── README.md
 ```
+
+The project follows Go's standard layout:
+- `cmd/` - Main applications for this project
+- `internal/` - Private application and library code that can't be imported by other projects
 
 ---
 
