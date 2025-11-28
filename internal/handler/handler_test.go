@@ -11,6 +11,7 @@ import (
 
 	"github.com/eltoncampos/load-balancer/internal/backend"
 	"github.com/eltoncampos/load-balancer/internal/pool"
+	"github.com/eltoncampos/load-balancer/testutil"
 )
 
 func createTestBackend(urlStr string) *backend.Backend {
@@ -27,13 +28,6 @@ func createTestPool(backends ...*backend.Backend) *pool.ServerPool {
 	return p
 }
 
-func createTestServer(response string, statusCode int) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(statusCode)
-		w.Write([]byte(response))
-	}))
-}
-
 func TestNew(t *testing.T) {
 	p := pool.New()
 	lb := New(p)
@@ -44,7 +38,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestServeHTTP_WithAvailableBackend(t *testing.T) {
-	server := createTestServer("ok", http.StatusOK)
+	server := testutil.CreateTestServer("ok", http.StatusOK)
 	defer server.Close()
 
 	b := createTestBackend(server.URL)
@@ -97,7 +91,7 @@ func TestServeHTTP_WithDeadBackends(t *testing.T) {
 }
 
 func TestServeHTTP_MaxAttemptsExceeded(t *testing.T) {
-	server := createTestServer("ok", http.StatusOK)
+	server := testutil.CreateTestServer("ok", http.StatusOK)
 	defer server.Close()
 
 	b := createTestBackend(server.URL)
@@ -118,10 +112,10 @@ func TestServeHTTP_MaxAttemptsExceeded(t *testing.T) {
 }
 
 func TestServeHTTP_RoundRobin(t *testing.T) {
-	server1 := createTestServer("backend1", http.StatusOK)
+	server1 := testutil.CreateTestServer("backend1", http.StatusOK)
 	defer server1.Close()
 
-	server2 := createTestServer("backend2", http.StatusOK)
+	server2 := testutil.CreateTestServer("backend2", http.StatusOK)
 	defer server2.Close()
 
 	b1 := createTestBackend(server1.URL)
@@ -157,7 +151,7 @@ func TestServeHTTP_RoundRobin(t *testing.T) {
 }
 
 func TestCreateErrorHandler_WithRetriesUnderLimit(t *testing.T) {
-	server := createTestServer("ok", http.StatusOK)
+	server := testutil.CreateTestServer("ok", http.StatusOK)
 	defer server.Close()
 
 	b := createTestBackend(server.URL)

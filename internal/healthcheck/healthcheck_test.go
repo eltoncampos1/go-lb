@@ -2,21 +2,14 @@ package healthcheck
 
 import (
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/eltoncampos/load-balancer/internal/backend"
+	"github.com/eltoncampos/load-balancer/testutil"
 )
-
-func createTestServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-}
 
 func createTestBackend(urlStr string) *backend.Backend {
 	u, _ := url.Parse(urlStr)
@@ -25,7 +18,7 @@ func createTestBackend(urlStr string) *backend.Backend {
 }
 
 func TestIsBackendAlive_WithRunningServer(t *testing.T) {
-	server := createTestServer()
+	server := testutil.CreateTestServerSimple()
 	defer server.Close()
 
 	u, _ := url.Parse(server.URL)
@@ -37,7 +30,7 @@ func TestIsBackendAlive_WithRunningServer(t *testing.T) {
 }
 
 func TestIsBackendAlive_WithStoppedServer(t *testing.T) {
-	server := createTestServer()
+	server := testutil.CreateTestServerSimple()
 	serverURL := server.URL
 	server.Close()
 
@@ -59,7 +52,7 @@ func TestIsBackendAlive_WithInvalidHost(t *testing.T) {
 }
 
 func TestCheckBackends_WithMixedStatus(t *testing.T) {
-	server := createTestServer()
+	server := testutil.CreateTestServerSimple()
 	defer server.Close()
 
 	backends := []*backend.Backend{
@@ -79,10 +72,10 @@ func TestCheckBackends_WithMixedStatus(t *testing.T) {
 }
 
 func TestCheckBackends_WithAllAlive(t *testing.T) {
-	server1 := createTestServer()
+	server1 := testutil.CreateTestServerSimple()
 	defer server1.Close()
 
-	server2 := createTestServer()
+	server2 := testutil.CreateTestServerSimple()
 	defer server2.Close()
 
 	backends := []*backend.Backend{
@@ -115,7 +108,7 @@ func TestCheckBackends_WithAllDead(t *testing.T) {
 }
 
 func TestCheckBackends_UpdatesBackendStatus(t *testing.T) {
-	server := createTestServer()
+	server := testutil.CreateTestServerSimple()
 	u, _ := url.Parse(server.URL)
 
 	b := createTestBackend(server.URL)
